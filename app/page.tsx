@@ -155,46 +155,128 @@ const Page = () => {
     setUnoPlayers(Array.from({ length: numPlayers }, () => false));
   };
 
+  const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
+    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+    return {
+      x: centerX + radius * Math.cos(angleInRadians),
+      y: centerY + radius * Math.sin(angleInRadians),
+    };
+  };
+
+  const describeArc = (x, y, radius, startAngle, endAngle) => {
+    const start = polarToCartesian(x, y, radius, endAngle);
+    const end = polarToCartesian(x, y, radius, startAngle);
+
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+
+    return [
+      'M',
+      start.x,
+      start.y,
+      'A',
+      radius,
+      radius,
+      0,
+      largeArcFlag,
+      0,
+      end.x,
+      end.y,
+    ].join(' ');
+  };
+
+  const playerRadius = 300; // Adjust the radius as needed
+  const centerCoords = { x: 0, y: 0 };
+
+  const playerPositions = Array.from({ length: numPlayers }).map(
+    (_, index) => (360 / numPlayers) * index
+  );
+
   return (
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column', // Adjusted to column layout
+        flexDirection: 'column',
         alignItems: 'center',
-        margin: '20px',
+        margin: '150px',
       }}
     >
-
       <h1>Deleted Card: {deletedCard}</h1>
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          alignItems: 'center',
+          position: 'relative',
+          width: '400px', // Adjust the width as needed
+          height: '400px', // Adjust the height as needed
         }}
       >
-        <div style={{ margin: '20px' }}>
-          <button onClick={handleDrawCardClick}>Draw One Card</button>
-        </div>
-        {[...Array(numPlayers).keys()].map((playerIndex) => (
-          <div key={playerIndex} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '20px' }}>
-            <h2>{playerNames[playerIndex]}</h2>
-            
-            {playerHands[playerIndex].map((card, cardIndex) => (
-              <Card key={cardIndex} value={card} onClick={() => handleCardClick(playerIndex, cardIndex)} />
-            ))}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          {[...Array(numPlayers).keys()].map((playerIndex) => {
+            const position = playerPositions[playerIndex];
+            const playerCoords = polarToCartesian(
+              centerCoords.x,
+              centerCoords.y,
+              playerRadius,
+              position
+            );
 
-            {playerHands[playerIndex].length === 2 && currentPlayer === playerIndex && (
-              <button onClick={handleUnoClick} disabled={unoPlayers[playerIndex]}>
-                Uno
-              </button>
-            )}
-          </div>
-        ))}
+            const isHorizontalLayout =
+              playerIndex % 2 === 0 || // for the player at the top
+              (playerIndex === numPlayers - 1 && numPlayers % 2 === 0); // for the player at the bottom in even player count
+
+            const playerStyle = {
+              position: 'absolute',
+              top: `${playerCoords.y}px`,
+              left: `${playerCoords.x}px`,
+              transform: `translate(-50%, -50%) rotate(${position}deg)`,
+            };
+
+            const cardContainerStyle = {
+              display: 'flex',
+              flexDirection: isHorizontalLayout ? 'row' : 'row',
+              alignItems: 'center',
+              position: 'relative',
+            };
+
+            const cards = playerHands[playerIndex].map((card, cardIndex) => (
+              <Card
+                key={cardIndex}
+                value={card}
+                onClick={() => handleCardClick(playerIndex, cardIndex)}
+                style={{
+                  position: 'absolute',
+                  [isHorizontalLayout ? 'left' : 'top']: `${cardIndex * 20}px`,
+                  transform: `translate(-50%, -50%)`,
+                }}
+              />
+            ));
+
+            return (
+              <div key={playerIndex} style={playerStyle}>
+                <div style={cardContainerStyle}>{cards}</div>
+                <div style={{ marginTop: '10px' }}>
+                  <h2>{playerNames[playerIndex]}</h2>
+                  {playerHands[playerIndex].length === 2 &&
+                    currentPlayer === playerIndex && (
+                      <button
+                        onClick={handleUnoClick}
+                        disabled={unoPlayers[playerIndex]}
+                      >
+                        Uno
+                      </button>
+                    )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 };
-
 export default Page;
