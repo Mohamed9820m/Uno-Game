@@ -84,11 +84,29 @@ const Page = () => {
   const [deletedCard, setDeletedCard] = useState('');
   const [currentPlayer, setCurrentPlayer] = useState(0); // Track the current player's turn
   const [unoPlayers, setUnoPlayers] = useState(Array.from({ length: numPlayers }, () => false)); // Track players who said "Uno"
+  const [drawnThisTurn, setDrawnThisTurn] = useState(Array.from({ length: numPlayers }, () => false));
+  const [playingDirection, setPlayingDirection] = useState(1); // 1 for default, -1 for reversed
+
+
   const unoDeckRef = useRef(new Deck());
 
   useEffect(() => {
     unoDeckRef.current.resetDeck(); // Reset the deck before each game
     unoDeckRef.current.shuffle();
+
+     const filteredCards = unoDeckRef.current.cards.filter(
+    card =>
+      !card.includes('Skip') &&
+      !card.includes('Reverse') &&
+      !card.includes('Draw') &&
+      !card.includes('Wild')
+  );
+
+  // Set deletedCard with a random card from the filtered deck
+  const randomIndex = Math.floor(Math.random() * filteredCards.length);
+  const randomCard = filteredCards[randomIndex];
+  setDeletedCard(randomCard);
+
     console.log("Number of cards remaining in the deck after shuffle:", unoDeckRef.current.cards.length);
     setPlayerHands(Array.from({ length: numPlayers }, () => unoDeckRef.current.dealHand(7)));
   }, [numPlayers]);
@@ -102,13 +120,25 @@ const Page = () => {
       setDeletedCard(card); // Set the deleted card
       console.log("Number of cards remaining in the deck after card removal:", unoDeckRef.current.cards.length);
 
+      // Check if the player has played a "Reverse" card
+      if (card.includes('Reverse')) {
+        // Dynamically reverse the playing direction
+        setPlayingDirection((prevDirection) => -prevDirection);
+
+        // Move to the previous player's turn immediately
+        setCurrentPlayer((prevPlayer) => (prevPlayer - 1 + numPlayers) % numPlayers);
+      } else {
+        // Move to the next player's turn based on the dynamic playing direction
+        setCurrentPlayer((prevPlayer) => (prevPlayer + playingDirection + numPlayers) % numPlayers);
+      }
+
       // Check if the player has only one card left and hasn't said "Uno"
       if (updatedHands[playerIndex].length === 1 && !unoPlayers[playerIndex]) {
-        // Draw two cards and add them to the player's hand
-        const drawnCards = unoDeckRef.current.dealHand(2);
+        // Automatically add two cards to the player's hand
+        const drawnCards = unoDeckRef.current.dealHand(4);
         updatedHands[playerIndex] = [...updatedHands[playerIndex], ...drawnCards];
         setPlayerHands(updatedHands);
-        console.log(`Player ${playerIndex + 1} failed to say Uno. Drawing two cards.`);
+        console.log(`Player ${playerIndex + 1} didn't say Uno and drew two penalty cards.`);
       }
 
       // Check if the player has completed all cards
@@ -116,11 +146,11 @@ const Page = () => {
         alert(`Player ${playerIndex + 1} has completed all cards!`);
         resetGame();
       } else {
-        // Move to the next player's turn
-        setCurrentPlayer((prevPlayer) => (prevPlayer + 1) % numPlayers);
-
         // Reset Uno status for all players
         setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+
+        // Reset drawnThisTurn flag for all players
+        setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
       }
     }
   };
@@ -135,15 +165,32 @@ const Page = () => {
   };
 
   const handleDrawCardClick = () => {
-    // Draw one card from the deck and add it to the current player's hand
-    const updatedHands = [...playerHands];
-    const drawnCard = unoDeckRef.current.drawCard();
-    if (drawnCard) {
-      updatedHands[currentPlayer] = [...updatedHands[currentPlayer], drawnCard];
-      setPlayerHands(updatedHands);
-      console.log("Number of cards remaining in the deck after drawing one card:", unoDeckRef.current.cards.length);
+    if (!drawnThisTurn[currentPlayer]) {
+      // Check if there are cards remaining in the deck
+      if (unoDeckRef.current.cards.length === 0) {
+        console.log("The deck is empty.");
+        return; // Don't proceed if the deck is empty
+      }
+
+      // Draw one card from the deck and add it to the current player's hand
+      const updatedHands = [...playerHands];
+      const drawnCard = unoDeckRef.current.drawCard();
+
+      if (drawnCard) {
+        updatedHands[currentPlayer] = [...updatedHands[currentPlayer], drawnCard];
+        setPlayerHands(updatedHands);
+        console.log("Number of cards remaining in the deck after drawing one card:", unoDeckRef.current.cards.length);
+
+        // Set the flag to indicate that the current player has drawn a card this turn
+        setDrawnThisTurn((prevDrawnThisTurn) => {
+          const updatedDrawnThisTurn = [...prevDrawnThisTurn];
+          updatedDrawnThisTurn[currentPlayer] = true;
+          return updatedDrawnThisTurn;
+        });
+      }
     }
   };
+
 
   const resetGame = () => {
     // Reset the game
@@ -153,6 +200,20 @@ const Page = () => {
     setPlayerHands(Array.from({ length: numPlayers }, () => unoDeckRef.current.dealHand(7)));
     setCurrentPlayer(0);
     setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+  };
+
+  const handlePassClick = () => {
+    // Check if the current player has drawn a card during the current turn
+    if (drawnThisTurn[currentPlayer]) {
+      // Move to the next player's turn without doing anything else
+      setCurrentPlayer((prevPlayer) => (prevPlayer + 1) % numPlayers);
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      // Reset drawnThisTurn flag for all players
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    } else {
+      console.log("Cannot pass without drawing a card first.");
+      // You may want to show a message or handle this case differently
+    }
   };
 
   const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
@@ -197,25 +258,28 @@ const Page = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        margin: '150px',
+        margin: '25%',
       }}
     >
-      <h1>Deleted Card: {deletedCard}</h1>
       <div
         style={{
           position: 'relative',
           width: '400px', // Adjust the width as needed
           height: '400px', // Adjust the height as needed
         }}
-      >
-        <div
+        >
+<div className='title' style={{ textAlign: 'center', margin: '150px auto' }}>
+  <h1>{deletedCard}</h1>
+</div>
+
+ <div
           style={{
             position: 'absolute',
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
           }}
-        >
+          >
           {[...Array(numPlayers).keys()].map((playerIndex) => {
             const position = playerPositions[playerIndex];
             const playerCoords = polarToCartesian(
@@ -243,6 +307,9 @@ const Page = () => {
               position: 'relative',
             };
 
+                        const isCurrentPlayer = currentPlayer === playerIndex;
+
+
             const cards = playerHands[playerIndex].map((card, cardIndex) => (
               <Card
                 key={cardIndex}
@@ -259,8 +326,8 @@ const Page = () => {
             return (
               <div key={playerIndex} style={playerStyle}>
                 <div style={cardContainerStyle}>{cards}</div>
-                <div style={{ marginTop: '10px' }}>
-                  <h2>{playerNames[playerIndex]}</h2>
+                <div style={{ marginTop: '50px' }}>
+                  <h2 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '10px'}}>{playerNames[playerIndex]}</h2>
                   {playerHands[playerIndex].length === 2 &&
                     currentPlayer === playerIndex && (
                       <button
@@ -270,6 +337,17 @@ const Page = () => {
                         Uno
                       </button>
                     )}
+
+{isCurrentPlayer && (
+                    <>
+                      <button onClick={handleDrawCardClick}>
+                        Draw One Card
+                      </button>
+                      <button onClick={handlePassClick}>
+                        Pass
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );
