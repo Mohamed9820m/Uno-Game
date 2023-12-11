@@ -165,7 +165,7 @@ console.log(next);
       }
   
       if (updatedHands[playerIndex].length === 1 && !unoPlayers[playerIndex]) {
-        const drawnCards = unoDeckRef.current.dealHand(2);
+        const drawnCards = unoDeckRef.current.dealHand(4);
         updatedHands[playerIndex] = [...updatedHands[playerIndex], ...drawnCards];
         setPlayerHands(updatedHands);
         console.log(`Player ${initialPlayer} didn't say Uno and drew two penalty cards.`);
@@ -183,13 +183,17 @@ console.log(next);
   
 
   const handleUnoClick = () => {
-    // Player declares Uno only if they have one card left
-    if (playerHands[currentPlayer].length === 1) {
+    // Player can declare Uno only if they have one card left
+    if (playerHands[currentPlayer].length === 2) {
       setUnoPlayers((prevUnoPlayers) => {
         const updatedUnoPlayers = [...prevUnoPlayers];
         updatedUnoPlayers[currentPlayer] = true; // Set Uno status for the current player
         return updatedUnoPlayers;
       });
+    } else {
+      // Player has more than one card
+      console.log(`Player ${playerNames[currentPlayer].id} has more than one card. Uno cannot be declared.`);
+      // Optionally, you can show a message or handle this case differently
     }
   };
 
@@ -230,23 +234,43 @@ console.log(next);
     setUnoPlayers(Array.from({ length: numPlayers }, () => false));
   };
 
-const handlePassClick = () => {
-  if (drawnThisTurn[currentPlayer]) {
-    // Move to the next player's turn without doing anything else
-    const nextPlayer = (next + 1) % numPlayers;
-    setCurrentPlayer(nextPlayer);
-    setNext(nextPlayer);
-    setUnoPlayers(Array.from({ length: numPlayers }, () => false));
-    // Reset drawnThisTurn flag for all players
-    setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
-  } else {
-    console.log("Cannot pass without drawing a card first.");
-    // You may want to show a message or handle this case differently
-  }
+  const handlePassClick = () => {
+    if (drawnThisTurn[currentPlayer]) {
+      // Calculate the next player's turn based on the game direction
+      const nextPlayer = direction === 1 ? (next + 1) % numPlayers : (next + numPlayers - 1) % numPlayers;
+      console.log('It will pass to', nextPlayer + 1);
+  
+      // Reset to 0 if the next player is equal to the number of players
+      const updatedNext = nextPlayer === numPlayers ? 0 : nextPlayer;
+  
+      // Determine the card played during the current turn
+      const playedCard = playerHands[currentPlayer][0]; // Assuming only one card is played per turn, adjust accordingly
+  
+      // Update the current player based on the game direction
+      setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
+  
+      // Change the game direction if a Reverse card was played
+      setDirection((prevDirection) => playedCard.includes('Reverse') ? -prevDirection : prevDirection);
+  
+      // Update the next player
+      setNext(updatedNext);
+  
+      // Reset flags
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    } else {
+      console.log("Cannot pass without drawing a card first.");
+      // You may want to show a message or handle this case differently
+    }
+  };
+  
+  
+  
 
-  // Add any additional logic you want to execute when the player passes
-  // (e.g., display a message, update a counter, etc.)
-};
+
+  
+  
+  
 
   const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
     const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
