@@ -25,7 +25,7 @@ class Deck {
       for (let i = 0; i < 2; i++) {
         this.cards.push('Skip ' + color);
         this.cards.push('Reverse ' + color);
-        this.cards.push('Draw ' + color);
+        this.cards.push('Draw '+color);
       }
     }
 
@@ -59,7 +59,7 @@ class Deck {
   }
 }
 
-const Card = ({ value, onClick }) => (
+const Card = ({ value, onClick, isPlayable, isCurrentPlayer }) => (
   <button
     onClick={onClick}
     style={{
@@ -68,14 +68,16 @@ const Card = ({ value, onClick }) => (
       fontSize: '16px',
       width: '50px',
       height: '80px',
-      border: '2px solid black',
+      border: `2px solid ${isCurrentPlayer && isPlayable ? 'red' : 'black'}`, // Change border color based on playability and current player
       borderRadius: '8px',
-      backgroundColor: 'lightgray',
+      backgroundColor: 'gray',
     }}
   >
     {value}
   </button>
 );
+
+
 
 const Page = () => {
   const [numPlayers, setNumPlayers] = useState(4); // maximum 8 players
@@ -93,7 +95,17 @@ const Page = () => {
   const [direction, setDirection] = useState(1); // 1 for clockwise, -1 for counterclockwise
   const [next, setNext] = useState(0); // Introduce nextPlayer state
 
+
+  const [wildColor, setWildColor] = useState('');
+  const [isWildColorSelectionOpen, setIsWildColorSelectionOpen] = useState(false);
+
+
+
   const [canPlay, setCanPlay] = useState(true);
+
+const [deletedCardColor, setDeletedCardColor] = useState('');
+const [deletedCardNumber, setDeletedCardNumber] = useState('');
+
 
   const unoDeckRef = useRef(new Deck());
   const initialPlayerRef = useRef(null);
@@ -114,71 +126,125 @@ const Page = () => {
     // Set deletedCard with a random card from the filtered deck
     const randomIndex = Math.floor(Math.random() * filteredCards.length);
     const randomCard = filteredCards[randomIndex];
+  
+    // Extract number and color from the randomCard
+    const [number, color] = randomCard.split(' ');
+  
     setDeletedCard(randomCard);
+
+
+    setDeletedCardNumber(number);
+    setDeletedCardColor(color);
+  
+ 
   
     console.log("Number of cards remaining in the deck after shuffle:", unoDeckRef.current.cards.length);
     setPlayerHands(Array.from({ length: numPlayers }, () => unoDeckRef.current.dealHand(7)));
   
     // Log the initial player information
-    const initialPlayer = currentPlayer ;
+    const initialPlayer = currentPlayer;
     const nextPlayer = (currentPlayer + direction + numPlayers) % numPlayers + 1;
-    console.log(`Initial player: ${initialPlayer}, Next player: ${nextPlayer-1}`);
+    console.log(`Initial player: ${initialPlayer}, Next player: ${nextPlayer - 1}`);
   }, [numPlayers]);
+
+  useEffect(() => {
+    console.log("First Deleted Card Color:", deletedCardColor);
+    console.log("First Deleted Card Number:", deletedCardNumber);
+  }, [deletedCardColor,deletedCardNumber]);
+
+
+  
+  const canPlayCard = (card) => {
+    const [selectedNumber, selectedColor] = card.split(' ');
+    const [prevNumber, prevColor] = deletedCard.split(' ');
+  
+    // Check if the selected card has the same color or number as the previously played card
+    return selectedNumber === prevNumber || selectedColor === prevColor || (selectedNumber === 'Draw' && selectedColor === prevColor) || (selectedNumber === 'Wild' || selectedNumber === 'Wild Draw 4') ;
+  };
 
   const handleCardClick = (playerIndex, cardIndex) => {
     if (playerIndex === currentPlayer && canPlay) {
       const updatedHands = [...playerHands];
       const card = updatedHands[playerIndex][cardIndex];
-      updatedHands[playerIndex].splice(cardIndex, 1);
-      setPlayerHands(updatedHands);
-      setDeletedCard(card);
   
-      const initialPlayer = playerNames[currentPlayer].id ;
-
-      const nextPlayer = (currentPlayer + direction + numPlayers) % numPlayers ;
-
-     
-
-      console.log(`Player ${initialPlayer} played a card. Current player: ${nextPlayer}, Next player: ${(nextPlayer + direction + numPlayers) % numPlayers }`);
+      const isPlayable = canPlayCard(card); // Check if the card is playable
   
-      initialPlayerRef.current = initialPlayer;
-
-
-      setNext((nextPlayer + direction + numPlayers) % numPlayers)
-console.log(next);
-
-
-      if (card.includes('Reverse')) {
-        // Draw a card for the player after playing a reverse card
-        const drawnCard = unoDeckRef.current.drawCard();
-        if (drawnCard) {
-          updatedHands[playerIndex] = [...updatedHands[playerIndex], drawnCard];
-          setPlayerHands(updatedHands);
-          console.log(`Player ${initialPlayer} drew a card after playing a reverse card.`);
-        }
-
-        // Switch the direction without changing the current player
-        setDirection((prevDirection) => -prevDirection);
-        setCurrentPlayer((prevPlayer) => (prevPlayer - direction + numPlayers) % numPlayers);
-      } else {
-        setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
-      }
-  
-      if (updatedHands[playerIndex].length === 1 && !unoPlayers[playerIndex]) {
-        const drawnCards = unoDeckRef.current.dealHand(4);
-        updatedHands[playerIndex] = [...updatedHands[playerIndex], ...drawnCards];
+      if (isPlayable) {
+        // Remove the played card from the player's hand
+        updatedHands[playerIndex].splice(cardIndex, 1);
         setPlayerHands(updatedHands);
-        console.log(`Player ${initialPlayer} didn't say Uno and drew two penalty cards.`);
-      }
+        setDeletedCard(card);
   
-      if (updatedHands[playerIndex].length === 0) {
-        alert(`Player ${initialPlayer} has completed all cards!`);
-        resetGame();
+        const [number, color] = card.split(' ');
+        console.log(`Player ${playerNames[currentPlayer].id} played a ${color} ${number} card.`);
+  
+        const initialPlayer = playerNames[currentPlayer].id;
+        const nextPlayer = (currentPlayer + direction + numPlayers) % numPlayers;
+  
+        console.log(`Player ${initialPlayer} played a card. Current player: ${nextPlayer}, Next player: ${(nextPlayer + direction + numPlayers) % numPlayers}`);
+  
+        initialPlayerRef.current = initialPlayer;
+        setNext((nextPlayer + direction + numPlayers) % numPlayers);
+  
+        if (card.includes('Reverse')) {
+          // Draw a card for the player after playing a reverse card
+          const drawnCard = unoDeckRef.current.drawCard();
+          if (drawnCard) {
+            updatedHands[playerIndex] = [...updatedHands[playerIndex], drawnCard];
+            setPlayerHands(updatedHands);
+            console.log(`Player ${initialPlayer} drew a card after playing a reverse card.`);
+          }
+  
+          // Switch the direction without changing the current player
+          setDirection((prevDirection) => -prevDirection);
+          setCurrentPlayer((prevPlayer) => (prevPlayer - direction + numPlayers) % numPlayers);
+        }
+        else if (card.includes('Wild') || card.includes('Wild Draw 4')) {
+          // Handle the case where a wild card is played
+          setIsWildColorSelectionOpen(true); 
+        }
+        
+        else {
+          // Move to the next player based on the game direction
+          setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
+        }
+  
+        if (updatedHands[playerIndex].length === 1 && !unoPlayers[playerIndex]) {
+          // Draw two penalty cards if the player didn't say Uno
+          const drawnCards = unoDeckRef.current.dealHand(2);
+          updatedHands[playerIndex] = [...updatedHands[playerIndex], ...drawnCards];
+          setPlayerHands(updatedHands);
+          console.log(`Player ${initialPlayer} didn't say Uno and drew two penalty cards.`);
+        }
+  
+        if (updatedHands[playerIndex].length === 0) {
+          // Player completed all cards
+          alert(`Player ${initialPlayer} has completed all cards!`);
+          resetGame();
+        } else {
+          // Reset Uno and DrawnThisTurn flags for the next turn
+          setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+          setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+        }
       } else {
-        setUnoPlayers(Array.from({ length: numPlayers }, () => false));
-        setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+        console.log(`Cannot play the selected card. Choose a card with the same color or number.`);
+        // Optionally, you can show a message or handle this case differently
       }
     }
+  };
+  
+
+  const handleWildColorSelection = (color) => {
+
+    
+    // Update the chosen color in the state
+    setDeletedCardColor(color);
+  
+    // Close the Wild color selection modal
+    setIsWildColorSelectionOpen(false);
+  
+    // Now, you can use the chosen color as needed in your game logic
+    console.log(`Chosen Wild Color: ${color}`);
   };
   
 
@@ -370,6 +436,8 @@ console.log(next);
                 key={cardIndex}
                 value={card}
                 onClick={() => handleCardClick(playerIndex, cardIndex)}
+                isPlayable={canPlayCard(card)}
+                isCurrentPlayer={isCurrentPlayer} // Pass whether the card belongs to the current player
                 style={{
                   position: 'absolute',
                   [isHorizontalLayout ? 'left' : 'top']: `${cardIndex * 20}px`,
@@ -378,6 +446,7 @@ console.log(next);
               />
             ));
 
+         
             return (
               <div key={playerIndex} style={playerStyle}>
                 <div style={cardContainerStyle}>{cards}</div>
@@ -400,8 +469,30 @@ console.log(next);
                       <button onClick={handlePassClick}>Pass</button>
                     </>
                   )}
+
+
+
+
+{isWildColorSelectionOpen && (
+  <div>
+    <div style={{ position: 'fixed', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '20px', background: '#fff' }}>
+        <p>Choose a color:</p>
+        <button onClick={() => handleWildColorSelection('Red')}>Red</button>
+        <button onClick={() => handleWildColorSelection('Blue')}>Blue</button>
+        <button onClick={() => handleWildColorSelection('Yellow')}>Yellow</button>
+        <button onClick={() => handleWildColorSelection('Green')}>Green</button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
                 </div>
               </div>
+
+              
             );
           })}
         </div>
