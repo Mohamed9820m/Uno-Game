@@ -98,6 +98,7 @@ const Page = () => {
 
   const [wildColor, setWildColor] = useState('');
   const [isWildColorSelectionOpen, setIsWildColorSelectionOpen] = useState(false);
+  const [wildCardPlayerIndex, setWildCardPlayerIndex] = useState(null);
 
 
 
@@ -158,10 +159,22 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
     const [selectedNumber, selectedColor] = card.split(' ');
     const [prevNumber, prevColor] = deletedCard.split(' ');
   
-    // Check if the selected card has the same color or number as the previously played card
-    return selectedNumber === prevNumber || selectedColor === prevColor || (selectedNumber === 'Draw' && selectedColor === prevColor) || (selectedNumber === 'Wild' || selectedNumber === 'Wild Draw 4') ;
+    // Log the chosen color
+    console.log("Chosen Color:", deletedCardColor);
+  
+    return (
+      selectedNumber === prevNumber ||
+      selectedColor === deletedCardColor || 
+      ((selectedNumber === 'Draw' || selectedNumber === 'Wild Draw 4') && selectedColor === deletedCardColor) ||
+      (selectedNumber === 'Wild' || selectedNumber === 'Wild Draw 4') ||
+      (selectedNumber !== 'Wild' && selectedColor === deletedCardColor)
+    );
   };
+  
 
+  
+
+  
   const handleCardClick = (playerIndex, cardIndex) => {
     if (playerIndex === currentPlayer && canPlay) {
       const updatedHands = [...playerHands];
@@ -177,6 +190,10 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
   
         const [number, color] = card.split(' ');
         console.log(`Player ${playerNames[currentPlayer].id} played a ${color} ${number} card.`);
+
+        setDeletedCard(card);
+        setDeletedCardNumber(number);
+        setDeletedCardColor(color);
   
         const initialPlayer = playerNames[currentPlayer].id;
         const nextPlayer = (currentPlayer + direction + numPlayers) % numPlayers;
@@ -199,9 +216,35 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
           setDirection((prevDirection) => -prevDirection);
           setCurrentPlayer((prevPlayer) => (prevPlayer - direction + numPlayers) % numPlayers);
         }
+        if (card.includes('Draw')) {
+          // Handle the case where a "Draw" card is played
+          const drawnCards = unoDeckRef.current.dealHand(2);
+          const nextPlayerIndex = (next + direction + numPlayers) % numPlayers;
+          updatedHands[nextPlayerIndex] = [
+            ...updatedHands[nextPlayerIndex],
+            ...drawnCards,
+          ];
+          setPlayerHands(updatedHands);
+    
+          // Skip the turn of the next player
+          const skippedPlayer = (nextPlayerIndex + direction + numPlayers) % numPlayers;
+          console.log(`Player ${playerNames[skippedPlayer].id} has been skipped due to a "Draw" card.`);
+    
+          // Reset Uno and DrawnThisTurn flags for the next turn
+          setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+          setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    
+
+
+
+          
+          // Move to the player after the skipped player based on the game direction
+          setCurrentPlayer((prevPlayer) => (skippedPlayer + direction + numPlayers) % numPlayers);
+        }
         else if (card.includes('Wild') || card.includes('Wild Draw 4')) {
           // Handle the case where a wild card is played
           setIsWildColorSelectionOpen(true); 
+          setWildCardPlayerIndex(playerIndex); // Set the player index who played the wild card
         }
         
         else {
@@ -216,7 +259,6 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
           setPlayerHands(updatedHands);
           console.log(`Player ${initialPlayer} didn't say Uno and drew two penalty cards.`);
         }
-  
         if (updatedHands[playerIndex].length === 0) {
           // Player completed all cards
           alert(`Player ${initialPlayer} has completed all cards!`);
@@ -235,16 +277,38 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
   
 
   const handleWildColorSelection = (color) => {
-
-    
     // Update the chosen color in the state
     setDeletedCardColor(color);
-  
+    console.log("deleted color testttttt",deletedCardColor);
     // Close the Wild color selection modal
     setIsWildColorSelectionOpen(false);
-  
     // Now, you can use the chosen color as needed in your game logic
     console.log(`Chosen Wild Color: ${color}`);
+    setWildCardPlayerIndex(null);
+    passTurn();
+  };
+
+
+  const passTurn = () => {
+    // Calculate the next player's turn based on the game direction
+    const nextPlayer = direction === 1 ? (next + 1) % numPlayers : (next + numPlayers - 1) % numPlayers;
+    console.log('Passing the turn to', nextPlayer + 1);
+
+    // Reset to 0 if the next player is equal to the number of players
+    const updatedNext = nextPlayer === numPlayers ? 0 : nextPlayer;
+
+    // Update the current player based on the game direction
+    setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
+
+    // Change the game direction if a Reverse card was played
+    setDirection((prevDirection) => (deletedCard.includes('Reverse') ? -prevDirection : prevDirection));
+
+    // Update the next player
+    setNext(updatedNext);
+
+    // Reset flags
+    setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+    setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
   };
   
 
@@ -446,6 +510,9 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
               />
             ));
 
+
+            const isWildCardPlayer = wildCardPlayerIndex === playerIndex;
+
          
             return (
               <div key={playerIndex} style={playerStyle}>
@@ -473,19 +540,19 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
 
 
 
-{isWildColorSelectionOpen && (
-  <div>
-    <div style={{ position: 'fixed', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '20px', background: '#fff' }}>
-        <p>Choose a color:</p>
-        <button onClick={() => handleWildColorSelection('Red')}>Red</button>
-        <button onClick={() => handleWildColorSelection('Blue')}>Blue</button>
-        <button onClick={() => handleWildColorSelection('Yellow')}>Yellow</button>
-        <button onClick={() => handleWildColorSelection('Green')}>Green</button>
-      </div>
-    </div>
-  </div>
-)}
+{isWildCardPlayer && isWildColorSelectionOpen && (
+                    <div>
+                      <div style={{ position: 'fixed', top: '0', left: '0', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '20px', background: '#fff' }}>
+                          <p>Choose a color:</p>
+                          <button onClick={() => handleWildColorSelection('Red')}>Red</button>
+                          <button onClick={() => handleWildColorSelection('Blue')}>Blue</button>
+                          <button onClick={() => handleWildColorSelection('Yellow')}>Yellow</button>
+                          <button onClick={() => handleWildColorSelection('Green')}>Green</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
 
 
