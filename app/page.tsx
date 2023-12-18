@@ -176,104 +176,148 @@ const [deletedCardNumber, setDeletedCardNumber] = useState('');
 
   
   const handleCardClick = (playerIndex, cardIndex) => {
-    if (playerIndex === currentPlayer && canPlay) {
-      const updatedHands = [...playerHands];
-      const card = updatedHands[playerIndex][cardIndex];
+    if (playerIndex !== currentPlayer || !canPlay) {
+      console.log("Cannot play: Invalid player index or canPlay is false.");
+      return;
+    }
   
-      const isPlayable = canPlayCard(card); // Check if the card is playable
+    const updatedHands = [...playerHands];
+    const card = updatedHands[playerIndex][cardIndex];
   
-      if (isPlayable) {
-        // Remove the played card from the player's hand
-        updatedHands[playerIndex].splice(cardIndex, 1);
+    const isPlayable = canPlayCard(card);
+    if (!isPlayable) {
+      console.log("Cannot play the selected card. Choose a card with the same color or number.");
+      return;
+    }
+  
+    // Remove the played card from the player's hand
+    updatedHands[playerIndex].splice(cardIndex, 1);
+    setPlayerHands(updatedHands);
+    setDeletedCard(card);
+  
+    const [number, color] = card.split(' ');
+    console.log(`Player ${playerNames[currentPlayer].id} played a ${color} ${number} card.`);
+  
+    setDeletedCard(card);
+    setDeletedCardNumber(number);
+    setDeletedCardColor(color);
+  
+    const initialPlayer = playerNames[currentPlayer].id;
+    const nextPlayer = (currentPlayer + direction + numPlayers) % numPlayers;
+  
+    console.log(`Player ${initialPlayer} played a card. Current player: ${nextPlayer}, Next player: ${(nextPlayer + direction + numPlayers) % numPlayers}`);
+  
+    initialPlayerRef.current = initialPlayer;
+    setNext((nextPlayer + direction + numPlayers) % numPlayers);
+  
+    if (card.includes('Reverse')) {
+      // Draw a card for the player after playing a reverse card
+      const drawnCard = unoDeckRef.current.drawCard();
+      if (drawnCard) {
+        updatedHands[playerIndex] = [...updatedHands[playerIndex], drawnCard];
         setPlayerHands(updatedHands);
-        setDeletedCard(card);
-  
-        const [number, color] = card.split(' ');
-        console.log(`Player ${playerNames[currentPlayer].id} played a ${color} ${number} card.`);
-
-        setDeletedCard(card);
-        setDeletedCardNumber(number);
-        setDeletedCardColor(color);
-  
-        const initialPlayer = playerNames[currentPlayer].id;
-        const nextPlayer = (currentPlayer + direction + numPlayers) % numPlayers;
-  
-        console.log(`Player ${initialPlayer} played a card. Current player: ${nextPlayer}, Next player: ${(nextPlayer + direction + numPlayers) % numPlayers}`);
-  
-        initialPlayerRef.current = initialPlayer;
-        setNext((nextPlayer + direction + numPlayers) % numPlayers);
-  
-        if (card.includes('Reverse')) {
-          // Draw a card for the player after playing a reverse card
-          const drawnCard = unoDeckRef.current.drawCard();
-          if (drawnCard) {
-            updatedHands[playerIndex] = [...updatedHands[playerIndex], drawnCard];
-            setPlayerHands(updatedHands);
-            console.log(`Player ${initialPlayer} drew a card after playing a reverse card.`);
-          }
-  
-          // Switch the direction without changing the current player
-          setDirection((prevDirection) => -prevDirection);
-          setCurrentPlayer((prevPlayer) => (prevPlayer - direction + numPlayers) % numPlayers);
-        }
-        if (card.includes('Draw')) {
-          // Handle the case where a "Draw" card is played
-          const drawnCards = unoDeckRef.current.dealHand(2);
-          const nextPlayerIndex = (next + direction + numPlayers) % numPlayers;
-          updatedHands[nextPlayerIndex] = [
-            ...updatedHands[nextPlayerIndex],
-            ...drawnCards,
-          ];
-          setPlayerHands(updatedHands);
-    
-          // Skip the turn of the next player
-          const skippedPlayer = (nextPlayerIndex + direction + numPlayers) % numPlayers;
-          console.log(`Player ${playerNames[skippedPlayer].id} has been skipped due to a "Draw" card.`);
-    
-          // Reset Uno and DrawnThisTurn flags for the next turn
-          setUnoPlayers(Array.from({ length: numPlayers }, () => false));
-          setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
-    
-
-
-
-          
-          // Move to the player after the skipped player based on the game direction
-          setCurrentPlayer((prevPlayer) => (skippedPlayer + direction + numPlayers) % numPlayers);
-        }
-        else if (card.includes('Wild') || card.includes('Wild Draw 4')) {
-          // Handle the case where a wild card is played
-          setIsWildColorSelectionOpen(true); 
-          setWildCardPlayerIndex(playerIndex); // Set the player index who played the wild card
-        }
-        
-        else {
-          // Move to the next player based on the game direction
-          setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
-        }
-  
-        if (updatedHands[playerIndex].length === 1 && !unoPlayers[playerIndex]) {
-          // Draw two penalty cards if the player didn't say Uno
-          const drawnCards = unoDeckRef.current.dealHand(2);
-          updatedHands[playerIndex] = [...updatedHands[playerIndex], ...drawnCards];
-          setPlayerHands(updatedHands);
-          console.log(`Player ${initialPlayer} didn't say Uno and drew two penalty cards.`);
-        }
-        if (updatedHands[playerIndex].length === 0) {
-          // Player completed all cards
-          alert(`Player ${initialPlayer} has completed all cards!`);
-          resetGame();
-        } else {
-          // Reset Uno and DrawnThisTurn flags for the next turn
-          setUnoPlayers(Array.from({ length: numPlayers }, () => false));
-          setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
-        }
-      } else {
-        console.log(`Cannot play the selected card. Choose a card with the same color or number.`);
-        // Optionally, you can show a message or handle this case differently
+        console.log(`Player ${initialPlayer} drew a card after playing a reverse card.`);
       }
+  
+      // Switch the direction without changing the current player
+      setDirection((prevDirection) => -prevDirection);
+      setCurrentPlayer((prevPlayer) => (prevPlayer - direction + numPlayers) % numPlayers);
+    }else if (card.includes(`Draw ${color}`)) {
+      // Handle the case where a "Draw" card is played
+      const nextPlayerIndex = (currentPlayer + direction + numPlayers) % numPlayers;
+    
+      // Draw two cards for the next player instead of the current player
+      const drawnCards = unoDeckRef.current.dealHand(2);
+      updatedHands[nextPlayerIndex] = [
+        ...updatedHands[nextPlayerIndex],
+        ...drawnCards,
+      ];
+      setPlayerHands(updatedHands);
+    
+      // Reset Uno and DrawnThisTurn flags for the next turn
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    
+      // Move to the player after the skipped player based on the game direction
+      setNext((nextPlayerIndex + direction + numPlayers) % numPlayers);
+    
+      // Change the game direction if a Reverse card was played
+      setDirection((prevDirection) => (card.includes('Reverse') ? -prevDirection : prevDirection));
+    
+      // Update the current player based on the game direction
+      setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
+    
+      // Reset flags
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    
+      // Pass the turn to the player after the skipped player
+      passTurn();
+    }
+
+    else if (card.includes('Wild Draw 4')) {
+      // Handle the case where a "Draw" card is played
+      const nextPlayerIndex = (currentPlayer + direction + numPlayers) % numPlayers;
+    
+      // Draw two cards for the next player instead of the current player
+      const drawnCards = unoDeckRef.current.dealHand(4);
+      updatedHands[nextPlayerIndex] = [
+        ...updatedHands[nextPlayerIndex],
+        ...drawnCards,
+      ];
+      setPlayerHands(updatedHands);
+
+      
+    
+      // Reset Uno and DrawnThisTurn flags for the next turn
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    
+      // Move to the player after the skipped player based on the game direction
+      setNext((nextPlayerIndex + direction + numPlayers) % numPlayers);
+    
+      // Change the game direction if a Reverse card was played
+      setDirection((prevDirection) => (card.includes('Reverse') ? -prevDirection : prevDirection));
+    
+      // Update the current player based on the game direction
+      setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
+    
+      // Reset flags
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
+    
+      // Pass the turn to the player after the skipped player
+      passTurn();
+
+    }
+    
+    else if (card.includes('Wild') || card.includes('Wild Draw 4')) {
+      // Handle the case where a wild card is played
+      setIsWildColorSelectionOpen(true);
+      setWildCardPlayerIndex(playerIndex); // Set the player index who played the wild card
+    } else {
+      // Move to the next player based on the game direction
+      setCurrentPlayer((prevPlayer) => (prevPlayer + direction + numPlayers) % numPlayers);
+    }
+  
+    if (updatedHands[playerIndex].length === 1 && !unoPlayers[playerIndex]) {
+      // Draw two penalty cards if the player didn't say Uno
+      const drawnCards = unoDeckRef.current.dealHand(2);
+      updatedHands[playerIndex] = [...updatedHands[playerIndex], ...drawnCards];
+      setPlayerHands(updatedHands);
+      console.log(`Player ${initialPlayer} didn't say Uno and drew two penalty cards.`);
+    }
+    if (updatedHands[playerIndex].length === 0) {
+      // Player completed all cards
+      alert(`Player ${initialPlayer} has completed all cards!`);
+      resetGame();
+    } else {
+      // Reset Uno and DrawnThisTurn flags for the next turn
+      setUnoPlayers(Array.from({ length: numPlayers }, () => false));
+      setDrawnThisTurn(Array.from({ length: numPlayers }, () => false));
     }
   };
+  
   
 
   const handleWildColorSelection = (color) => {
